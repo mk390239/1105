@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>手机端固定位置WebAR</title>
+    <title>真实固定位置WebAR</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
@@ -12,15 +12,16 @@
         embedded 
         arjs 
         vr-mode-ui="enabled: false"
+        xr-mode-ui="enabled: false"
     >
         
-        <!-- 标记 -->
-        <a-marker preset="hiro" id="marker">
-            <!-- 初始显示的模型 -->
+        <!-- 标记 - 只用于初始定位 -->
+        <a-marker preset="hiro" id="marker" emitevents="true" smooth="true" smoothCount="10" smoothTolerance="0.01">
+            <!-- 初始显示的模型（很小） -->
             <a-entity 
                 id="floating-model"
                 gltf-model="4.glb"
-                scale="0.05 0.05 0.05"  <!-- 调小尺寸 -->
+                scale="0.01 0.01 0.01"  <!-- 非常小的尺寸 -->
                 visible="true"
             ></a-entity>
         </a-marker>
@@ -30,58 +31,64 @@
 
     <script>
         let isModelFixed = false;
-        let fixedModel = null;
-        const scene = document.querySelector('a-scene');
-        const marker = document.querySelector('#marker');
-        const floatingModel = document.querySelector('#floating-model');
+        let worldModel = null;
         
-        // 标记被发现时
-        marker.addEventListener('markerFound', function() {
-            console.log('标记被发现');
+        AFRAME.registerComponent('fixed-in-world', {
+            init: function() {
+                this.marker = document.querySelector('#marker');
+                this.scene = this.el.sceneEl;
+                
+                this.marker.addEventListener('markerFound', () => {
+                    if (!isModelFixed) {
+                        this.fixModelInWorld();
+                    }
+                });
+            },
             
-            if (!isModelFixed) {
-                console.log('固定模型到现实世界位置');
+            fixModelInWorld: function() {
+                console.log('将模型固定在现实世界位置');
                 
                 // 隐藏浮动模型
-                floatingModel.setAttribute('visible', 'false');
+                document.querySelector('#floating-model').setAttribute('visible', 'false');
                 
-                // 创建新的固定模型（直接添加到场景，不在marker内）
-                fixedModel = document.createElement('a-entity');
-                fixedModel.setAttribute('gltf-model', '4.glb');
-                fixedModel.setAttribute('scale', '0.05 0.05 0.05');  <!-- 小尺寸 -->
-                fixedModel.setAttribute('visible', 'true');
+                // 获取标记的世界矩阵
+                const markerObj = this.marker.object3D;
+                const worldMatrix = new THREE.Matrix4();
+                markerObj.updateMatrixWorld(true);
+                worldMatrix.copy(markerObj.matrixWorld);
                 
-                // 获取标记的当前位置
-                const markerPosition = marker.object3D.position.clone();
-                const markerRotation = marker.object3D.rotation.clone();
+                // 创建世界坐标系中的模型
+                worldModel = document.createElement('a-entity');
+                worldModel.setAttribute('gltf-model', '4.glb');
+                worldModel.setAttribute('scale', '0.01 0.01 0.01');
+                worldModel.setAttribute('visible', 'true');
                 
-                // 设置固定模型的位置（世界坐标）
-                fixedModel.object3D.position.copy(markerPosition);
-                fixedModel.object3D.rotation.copy(markerRotation);
+                // 应用世界变换
+                worldModel.object3D.applyMatrix4(worldMatrix);
                 
-                // 添加到场景（关键：不在marker内部）
-                scene.appendChild(fixedModel);
+                // 添加到场景（不在marker内部！）
+                this.scene.appendChild(worldModel);
                 
                 isModelFixed = true;
-                console.log('模型已固定在现实世界，移动手机不会跟随');
+                console.log('✅ 模型已固定在现实世界！移动手机不会跟随');
             }
         });
         
-        // 点击屏幕重置（手机友好）
-        scene.addEventListener('click', function() {
-            if (isModelFixed) {
-                if (fixedModel && fixedModel.parentNode) {
-                    fixedModel.parentNode.removeChild(fixedModel);
-                }
-                floatingModel.setAttribute('visible', 'true');
-                isModelFixed = false;
-                console.log('已重置，重新扫描可固定新位置');
+        // 为场景添加固定组件
+        document.querySelector('a-scene').setAttribute('fixed-in-world', '');
+        
+        // 双击重置
+        document.querySelector('a-scene').addEventListener('dblclick', function() {
+            if (worldModel && worldModel.parentNode) {
+                worldModel.parentNode.removeChild(worldModel);
             }
+            document.querySelector('#floating-model').setAttribute('visible', 'true');
+            isModelFixed = false;
+            console.log('🔄 已重置，重新扫描标记');
         });
         
-        // 控制台提示
-        console.log('扫描Hiro标记后，模型将固定在现实世界位置');
-        console.log('点击屏幕可以重置');
+        console.log('📱 扫描Hiro标记，模型将固定在现实世界位置');
+        console.log('💡 双击屏幕可以重置');
     </script>
 </body>
 </html>
