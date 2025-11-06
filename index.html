@@ -31,10 +31,17 @@
     <div style="position: absolute; top: 20px; left: 0; right: 0; text-align: center; color: white; font-family: 'Hiragino Sans', sans-serif; font-size: 14px; text-shadow: 1px 1px 2px black; padding: 10px;">
         <div style="background: rgba(0,0,0,0.8); padding: 15px; border-radius: 10px; display: inline-block;">
             <div style="font-weight: bold; margin-bottom: 8px; font-size: 16px;">🎮 操作説明</div>
-            <div>📱 <b>ピンチ</b>: 拡大・縮小</div>
-            <div>🔄 <b>回転</b>: モデルを回転</div>
+            <div>📱 <b>ピンチ</b>: モデルの拡大・縮小</div>
+            <div>🔄 <b>ドラッグ</b>: モデルの回転</div>
             <div>👆 <b>ダブルタップ</b>: リセット</div>
         </div>
+    </div>
+
+    <!-- 操作ボタン（モバイル用） -->
+    <div style="position: absolute; bottom: 100px; right: 20px; display: flex; flex-direction: column; gap: 10px;">
+        <button id="zoom-in" style="width: 60px; height: 60px; border-radius: 50%; border: none; background: rgba(0,0,0,0.7); color: white; font-size: 24px; font-weight: bold;">＋</button>
+        <button id="zoom-out" style="width: 60px; height: 60px; border-radius: 50%; border: none; background: rgba(0,0,0,0.7); color: white; font-size: 24px; font-weight: bold;">－</button>
+        <button id="reset-model" style="width: 60px; height: 60px; border-radius: 50%; border: none; background: rgba(0,0,0,0.7); color: white; font-size: 20px;">↺</button>
     </div>
 
     <script>
@@ -45,25 +52,58 @@
                 this.initialScale = 0.01;
                 this.currentScale = this.initialScale;
                 this.isRotating = false;
-                this.rotationSpeed = 2;
+                this.lastTouchX = 0;
                 
-                this.setupGestures();
-                this.addResetHandler();
+                this.setupEventListeners();
+                this.setupUIButtons();
             },
             
-            setupGestures: function() {
+            setupEventListeners: function() {
                 const scene = this.model.sceneEl;
+                const model = this.model;
                 
-                // ピンチジェスチャーで拡大縮小
-                scene.addEventListener('pinchstarted', (evt) => {
-                    this.isScaling = true;
+                // タッチ開始
+                scene.addEventListener('touchstart', (evt) => {
+                    // 1本指で回転
+                    if (evt.touches.length === 1) {
+                        this.isRotating = true;
+                        this.lastTouchX = evt.touches[0].clientX;
+                    }
+                    
+                    // 2本指でスケール
+                    if (evt.touches.length === 2) {
+                        this.initialPinchDistance = this.getTouchDistance(evt.touches);
+                        this.initialScale = this.currentScale;
+                    }
                 });
                 
-                scene.addEventListener('pinchmoved', (evt) => {
-                    if (this.isScaling) {
-                        const scaleChange = evt.detail.spreadChange / 100;
-                        this.currentScale = Math.max(0.005, Math.min(0.05, this.currentScale + scaleChange));
-                        this.model.setAttribute('scale', {
+                // タッチ移動
+                scene.addEventListener('touchmove', (evt) => {
+                    evt.preventDefault();
+                    
+                    // 回転処理
+                    if (this.isRotating && evt.touches.length === 1) {
+                        const currentTouchX = evt.touches[0].clientX;
+                        const deltaX = currentTouchX - this.lastTouchX;
+                        
+                        const currentRotation = model.getAttribute('rotation');
+                        const newRotation = {
+                            x: currentRotation.x,
+                            y: currentRotation.y + deltaX * 0.5,
+                            z: currentRotation.z
+                        };
+                        
+                        model.setAttribute('rotation', newRotation);
+                        this.lastTouchX = currentTouchX;
+                    }
+                    
+                    // スケール処理
+                    if (evt.touches.length === 2) {
+                        const currentDistance = this.getTouchDistance(evt.touches);
+                        const scaleRatio = currentDistance / this.initialPinchDistance;
+                        
+                        this.currentScale = Math.max(0.005, Math.min(0.1, this.initialScale * scaleRatio));
+                        model.setAttribute('scale', {
                             x: this.currentScale,
                             y: this.currentScale,
                             z: this.currentScale
@@ -71,64 +111,94 @@
                     }
                 });
                 
-                scene.addEventListener('pinchended', (evt) => {
-                    this.isScaling = false;
+                // タッチ終了
+                scene.addEventListener('touchend', (evt) => {
+                    this.isRotating = false;
                 });
                 
-                // 回転ジェスチャー
-                let lastTouchX = 0;
-                let isRotating = false;
-                
-                scene.addEventListener('touchstart', (evt) => {
-                    if (evt.touches.length === 1) {
-                        isRotating = true;
-                        lastTouchX = evt.touches[0].clientX;
+                // ダブルタップでリセット
+                let lastTap = 0;
+                scene.addEventListener('touchend', (evt) => {
+                    const currentTime = new Date().getTime();
+                    const tapLength = currentTime - lastTap;
+                    
+                    if (tapLength < 500 && tapLength > 0) {
+                        this.resetModel();
                     }
+                    lastTap = currentTime;
                 });
                 
-                scene.addEventListener('touchmove', (evt) => {
-                    if (isRotating && evt.touches.length === 1) {
-                        const currentTouchX = evt.touches[0].clientX;
-                        const deltaX = currentTouchX - lastTouchX;
-                        
-                        const currentRotation = this.model.getAttribute('rotation');
+                // PC用マウス操作
+                let isMouseDown = false;
+                let lastMouseX = 0;
+                
+                scene.addEventListener('mousedown', (evt) => {
+                    isMouseDown = true;
+                    lastMouseX = evt.clientX;
+                });
+                
+                scene.addEventListener('mousemove', (evt) => {
+                    if (isMouseDown) {
+                        const deltaX = evt.clientX - lastMouseX;
+                        const currentRotation = model.getAttribute('rotation');
                         const newRotation = {
                             x: currentRotation.x,
                             y: currentRotation.y + deltaX * 0.5,
                             z: currentRotation.z
                         };
-                        
-                        this.model.setAttribute('rotation', newRotation);
-                        lastTouchX = currentTouchX;
+                        model.setAttribute('rotation', newRotation);
+                        lastMouseX = evt.clientX;
                     }
                 });
                 
-                scene.addEventListener('touchend', (evt) => {
-                    isRotating = false;
+                scene.addEventListener('mouseup', () => {
+                    isMouseDown = false;
+                });
+                
+                // PC用ホイールズーム
+                scene.addEventListener('wheel', (evt) => {
+                    evt.preventDefault();
+                    const scaleChange = -evt.deltaY * 0.0001;
+                    this.currentScale = Math.max(0.005, Math.min(0.1, this.currentScale + scaleChange));
+                    model.setAttribute('scale', {
+                        x: this.currentScale,
+                        y: this.currentScale,
+                        z: this.currentScale
+                    });
                 });
             },
             
-            addResetHandler: function() {
-                // ダブルタップでリセット
-                let lastTap = 0;
-                const scene = this.model.sceneEl;
-                
-                scene.addEventListener('touchstart', (evt) => {
-                    const currentTime = new Date().getTime();
-                    const tapLength = currentTime - lastTap;
-                    
-                    if (tapLength < 500 && tapLength > 0) {
-                        // ダブルタップ検出
-                        this.resetModel();
-                        evt.preventDefault();
-                    }
-                    lastTap = currentTime;
+            setupUIButtons: function() {
+                // ズームインボタン
+                document.getElementById('zoom-in').addEventListener('click', () => {
+                    this.currentScale = Math.min(0.1, this.currentScale + 0.005);
+                    this.model.setAttribute('scale', {
+                        x: this.currentScale,
+                        y: this.currentScale,
+                        z: this.currentScale
+                    });
                 });
                 
-                // PC用ダブルクリック
-                scene.addEventListener('dblclick', (evt) => {
+                // ズームアウトボタン
+                document.getElementById('zoom-out').addEventListener('click', () => {
+                    this.currentScale = Math.max(0.005, this.currentScale - 0.005);
+                    this.model.setAttribute('scale', {
+                        x: this.currentScale,
+                        y: this.currentScale,
+                        z: this.currentScale
+                    });
+                });
+                
+                // リセットボタン
+                document.getElementById('reset-model').addEventListener('click', () => {
                     this.resetModel();
                 });
+            },
+            
+            getTouchDistance: function(touches) {
+                const dx = touches[0].clientX - touches[1].clientX;
+                const dy = touches[0].clientY - touches[1].clientY;
+                return Math.sqrt(dx * dx + dy * dy);
             },
             
             resetModel: function() {
@@ -147,65 +217,18 @@
             }
         });
         
-        // ジェスチャー認識のコンポーネント
-        AFRAME.registerComponent('gesture-detector', {
-            init: function() {
-                this.scene = this.el;
-                this.setupPinchGesture();
-            },
-            
-            setupPinchGesture: function() {
-                let initialDistance = 0;
-                let currentDistance = 0;
-                
-                this.scene.addEventListener('touchstart', (evt) => {
-                    if (evt.touches.length === 2) {
-                        initialDistance = this.getTouchDistance(evt.touches);
-                    }
-                });
-                
-                this.scene.addEventListener('touchmove', (evt) => {
-                    if (evt.touches.length === 2) {
-                        currentDistance = this.getTouchDistance(evt.touches);
-                        const spreadChange = currentDistance - initialDistance;
-                        
-                        this.scene.emit('pinchmoved', {
-                            spreadChange: spreadChange
-                        });
-                    }
-                });
-                
-                this.scene.addEventListener('touchend', (evt) => {
-                    if (evt.touches.length < 2) {
-                        this.scene.emit('pinchended');
-                    }
-                });
-            },
-            
-            getTouchDistance: function(touches) {
-                const dx = touches[0].clientX - touches[1].clientX;
-                const dy = touches[0].clientY - touches[1].clientY;
-                return Math.sqrt(dx * dx + dy * dy);
-            }
-        });
-        
         // 初期化
         window.addEventListener('load', function() {
-            // ジェスチャー検出を有効化
-            document.querySelector('a-scene').setAttribute('gesture-detector', '');
-            
-            // モデル操作を有効化
             const model = document.querySelector('#ar-model');
             model.setAttribute('model-controls', '');
             
             console.log('🎮 操作可能ARモデル 準備完了');
             console.log('📱 操作方法:');
-            console.log(' - ピンチ: 拡大縮小');
-            console.log(' - 1本指ドラッグ: 回転');
-            console.log(' - ダブルタップ: リセット');
+            console.log(' - ピンチ: モデルの拡大縮小');
+            console.log(' - 1本指ドラッグ: モデルの回転');
+            console.log(' - ボタン: 拡大/縮小/リセット');
         });
         
-        // マーカー検出時のメッセージ
         document.querySelector('#marker').addEventListener('markerFound', function() {
             console.log('✅ マーカー検出 - モデル操作可能');
         });
@@ -217,6 +240,16 @@
             -webkit-touch-callout: none;
             -webkit-user-select: none;
             user-select: none;
+        }
+        
+        button {
+            touch-action: manipulation;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        button:active {
+            transform: scale(0.95);
+            background: rgba(255,255,255,0.3) !important;
         }
     </style>
 </body>
