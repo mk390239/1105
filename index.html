@@ -7,163 +7,81 @@
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 </head>
 <body style="margin: 0; overflow: hidden">
-    <a-scene embedded arjs vr-mode-ui="enabled: false"><!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>固定位置WebAR</title>
-    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-</head>
-<body style="margin: 0; overflow: hidden">
-    <a-scene embedded arjs vr-mode-ui="enabled: false">
+    <a-scene 
+        embedded 
+        arjs 
+        vr-mode-ui="enabled: false"
+        renderer="logarithmicDepthBuffer: true;"
+    >
         
         <!-- 标记 -->
         <a-marker preset="hiro" id="marker" emitevents="true">
+            <!-- 初始显示的模型 -->
             <a-entity 
                 id="floating-model"
                 gltf-model="4.glb"
-                scale="0.05 0.05 0.05"  <!-- 调小模型 -->
+                scale="0.5 0.5 0.5"
                 visible="true"
             ></a-entity>
         </a-marker>
-        
-        <!-- 固定在标记位置的模型（初始隐藏） -->
-        <a-entity
-            id="fixed-model"
-            gltf-model="4.glb"
-            scale="0.05 0.05 0.05"  <!-- 调小模型 -->
-            visible="false"
-        ></a-entity>
         
         <a-entity camera></a-entity>
     </a-scene>
 
     <script>
         let isModelFixed = false;
+        let fixedModel = null;
+        
         const marker = document.querySelector('#marker');
         const floatingModel = document.querySelector('#floating-model');
-        const fixedModel = document.querySelector('#fixed-model');
         
-        // 当标记被识别时
         marker.addEventListener('markerFound', function() {
-            console.log('标记识别成功');
-            
             if (!isModelFixed) {
-                // 获取标记的世界坐标位置
-                const markerObject3D = marker.object3D;
-                const worldPosition = new THREE.Vector3();
-                markerObject3D.getWorldPosition(worldPosition);
+                console.log('第一次识别标记，固定模型位置');
                 
-                // 获取标记的世界旋转
-                const worldRotation = new THREE.Euler();
-                worldRotation.copy(markerObject3D.rotation);
-                
-                console.log('固定位置:', worldPosition);
-                
-                // 设置固定模型的位置和旋转
-                fixedModel.setAttribute('position', {
-                    x: worldPosition.x,
-                    y: worldPosition.y, 
-                    z: worldPosition.z
-                });
-                fixedModel.setAttribute('rotation', {
-                    x: THREE.Math.radToDeg(worldRotation.x),
-                    y: THREE.Math.radToDeg(worldRotation.y),
-                    z: THREE.Math.radToDeg(worldRotation.z)
-                });
-                
-                fixedModel.setAttribute('visible', 'true');
+                // 隐藏浮动模型
                 floatingModel.setAttribute('visible', 'false');
+                
+                // 创建新的固定模型（不在marker内部）
+                fixedModel = document.createElement('a-entity');
+                fixedModel.setAttribute('gltf-model', '4.glb');
+                fixedModel.setAttribute('scale', '0.5 0.5 0.5');
+                
+                // 关键：复制标记的当前位置和旋转
+                const markerPosition = marker.getAttribute('position');
+                const markerRotation = marker.getAttribute('rotation');
+                
+                fixedModel.setAttribute('position', markerPosition);
+                fixedModel.setAttribute('rotation', markerRotation);
+                fixedModel.setAttribute('visible', 'true');
+                
+                // 添加到场景中，而不是标记中
+                document.querySelector('a-scene').appendChild(fixedModel);
                 
                 isModelFixed = true;
                 console.log('模型已固定在现实世界位置');
             }
         });
         
-        // 标记丢失时，固定模型继续保持显示
-        marker.addEventListener('markerLost', function() {
-            console.log('标记丢失，固定模型保持显示');
-            // 什么都不做，固定模型会继续显示
+        // 重置功能：长按屏幕3秒
+        let resetTimer = null;
+        document.querySelector('a-scene').addEventListener('touchstart', function() {
+            resetTimer = setTimeout(resetModel, 3000);
         });
         
-        // 双击重置
-        document.querySelector('a-scene').addEventListener('dblclick', function() {
-            fixedModel.setAttribute('visible', 'false');
-            floatingModel.setAttribute('visible', 'true');
-            isModelFixed = false;
-            console.log('已重置，重新扫描标记可再次固定模型');
+        document.querySelector('a-scene').addEventListener('touchend', function() {
+            clearTimeout(resetTimer);
         });
-    </script>
-</body>
-</html>
-
         
-        <!-- 标记 -->
-        <a-marker preset="hiro" id="marker" emitevents="true">
-            <a-entity 
-                id="floating-model"
-                gltf-model="4.glb"
-                scale="0.3 0.3 0.3"
-                visible="true"
-            ></a-entity>
-        </a-marker>
-        
-        <!-- 固定在标记位置的模型（初始隐藏） -->
-        <a-entity
-            id="fixed-model"
-            gltf-model="4.glb"
-            scale="0.3 0.3 0.3"
-            visible="false"
-        ></a-entity>
-        
-        <a-entity camera></a-entity>
-    </a-scene>
-
-    <script>
-        let isModelFixed = false;
-        const marker = document.querySelector('#marker');
-        const floatingModel = document.querySelector('#floating-model');
-        const fixedModel = document.querySelector('#fixed-model');
-        
-        // 当标记被识别时
-        marker.addEventListener('markerFound', function() {
-            console.log('标记识别成功');
-            
-            if (!isModelFixed) {
-                // 第一次识别时，记录标记位置并固定模型
-                const markerPosition = marker.getAttribute('position');
-                const markerRotation = marker.getAttribute('rotation');
-                
-                // 设置固定模型的位置和旋转
-                fixedModel.setAttribute('position', markerPosition);
-                fixedModel.setAttribute('rotation', markerRotation);
-                fixedModel.setAttribute('visible', 'true');
-                
-                // 隐藏浮动模型
-                floatingModel.setAttribute('visible', 'false');
-                
-                isModelFixed = true;
-                console.log('模型已固定在标记位置');
+        function resetModel() {
+            if (fixedModel) {
+                fixedModel.parentNode.removeChild(fixedModel);
+                fixedModel = null;
             }
-        });
-        
-        // 当标记丢失时（视角挪开）
-        marker.addEventListener('markerLost', function() {
-            console.log('标记丢失，但固定模型保持在原位置');
-            // 固定模型继续保持显示，浮动模型隐藏
-            floatingModel.setAttribute('visible', 'false');
-        });
-        
-        // 双击屏幕重置（可以重新定位）
-        document.querySelector('a-scene').addEventListener('dblclick', function() {
-            fixedModel.setAttribute('visible', 'false');
             floatingModel.setAttribute('visible', 'true');
             isModelFixed = false;
-            console.log('已重置，重新扫描标记可再次固定模型');
-        });
+            console.log('已重置，重新扫描标记可固定新位置');
+        }
     </script>
 </body>
 </html>
-
-
