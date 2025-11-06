@@ -2,105 +2,27 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>真实固定WebAR</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>AR.js优化版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
 </head>
 <body style="margin: 0; overflow: hidden;">
-    <a-scene 
-        embedded 
-        arjs 
-        vr-mode-ui="enabled: false"
-    >
+    <a-scene embedded arjs vr-mode-ui="enabled: false">
         
-        <!-- 标记 -->
-        <a-marker preset="hiro" id="marker">
+        <a-marker preset="hiro">
             <a-entity 
-                id="model-on-marker"
                 gltf-model="4.glb"
                 scale="0.01 0.01 0.01"
-                visible="true"
+                animation="property: rotation; to: 0 360 0; loop: true; dur: 10000"
             ></a-entity>
         </a-marker>
         
         <a-entity camera></a-entity>
     </a-scene>
-
-    <script>
-        // 简单方案：让用户手动点击放置
-        const scene = document.querySelector('a-scene');
-        let markerFound = false;
-        let fixedModel = null;
-        
-        scene.addEventListener('click', function(evt) {
-            if (markerFound && !fixedModel) {
-                // 获取标记的当前位置
-                const marker = document.querySelector('#marker');
-                const markerPosition = marker.getAttribute('position');
-                const markerRotation = marker.getAttribute('rotation');
-                
-                console.log('放置模型在位置:', markerPosition);
-                
-                // 创建固定模型
-                fixedModel = document.createElement('a-entity');
-                fixedModel.setAttribute('gltf-model', '4.glb');
-                fixedModel.setAttribute('scale', '0.01 0.01 0.01');
-                fixedModel.setAttribute('position', markerPosition);
-                fixedModel.setAttribute('rotation', markerRotation);
-                fixedModel.setAttribute('visible', 'true');
-                
-                // 添加到场景
-                scene.appendChild(fixedModel);
-                
-                // 隐藏标记上的模型
-                document.querySelector('#model-on-marker').setAttribute('visible', 'false');
-                
-                console.log('✅ 模型已固定在标记位置！');
-            }
-        });
-        
-        // 检测标记
-        document.querySelector('#marker').addEventListener('markerFound', function() {
-            markerFound = true;
-            console.log('🎯 标记已识别，点击屏幕固定模型');
-        });
-        
-        document.querySelector('#marker').addEventListener('markerLost', function() {
-            markerFound = false;
-        });
-        
-        // 长按重置
-        let resetTimer;
-        scene.addEventListener('touchstart', function() {
-            resetTimer = setTimeout(resetAll, 2000);
-        });
-        
-        scene.addEventListener('touchend', function() {
-            clearTimeout(resetTimer);
-        });
-        
-        scene.addEventListener('mousedown', function() {
-            resetTimer = setTimeout(resetAll, 2000);
-        });
-        
-        scene.addEventListener('mouseup', function() {
-            clearTimeout(resetTimer);
-        });
-        
-        function resetAll() {
-            if (fixedModel && fixedModel.parentNode) {
-                fixedModel.parentNode.removeChild(fixedModel);
-                fixedModel = null;
-            }
-            document.querySelector('#model-on-marker').setAttribute('visible', 'true');
-            console.log('🔄 已重置');
-        }
-        
-        console.log('操作说明:');
-        console.log('1. 扫描Hiro标记');
-        console.log('2. 点击屏幕将模型固定在当前标记位置');
-        console.log('3. 长按2秒重置');
-    </script>
+    
+    <div style="position: absolute; bottom: 20px; left: 0; right: 0; text-align: center; color: white; font-family: Arial;">
+        📍 将标记固定在桌面，移动手机查看效果
+    </div>
 </body>
 </html>
